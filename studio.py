@@ -142,10 +142,10 @@ def main(argv):
         return
 
     if cmd == "ui":
-        # coppie chiave valore: ui x 488 y 131 · ui vista citta
+        # coppie chiave valore: ui x 488 y 131 · ui w 520 h 300 · ui vista citta
         stato = ui()
         for k, v in zip(args[::2], args[1::2]):
-            stato[k] = int(float(v)) if k in ("x", "y") else v
+            stato[k] = int(float(v)) if k in ("x", "y", "w", "h") else v
         with open(os.path.join(QUI, "ui.json"), "w") as f:
             json.dump(stato, f)
         return

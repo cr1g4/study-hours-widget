@@ -8,6 +8,8 @@ import { run } from "uebersicht";
 const CARTELLA = "study-hours.widget"; // nome della cartella del widget
 const STUDIO = `/usr/bin/python3 ${CARTELLA}/studio.py`;
 const CHIAVE_POSIZIONE = "study-hours.posizione";
+const LARGA = 280; // misura di partenza del widget
+const ALTA = 530;
 
 // un colore per materia attiva, nell'ordine in cui sono elencate
 const COLORI = ["#2dd4bf", "#a78bfa", "#fb7185", "#fbbf24", "#60a5fa", "#f472b6"];
@@ -36,6 +38,8 @@ export const updateState = (event, prev) => {
       return { ...prev, indietro: Math.max(0, prev.indietro - 1) };
     case "VISTA":
       return { ...prev, vista: event.vista };
+    case "MISURA":
+      return { ...prev, misura: event.misura };
     default:
       return prev;
   }
@@ -51,6 +55,9 @@ export const className = `
   .card {
     position: absolute;
     width: 280px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     box-sizing: border-box;
     padding: 12px;
     border-radius: 24px;
@@ -59,9 +66,29 @@ export const className = `
     box-shadow: 0 18px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06);
     user-select: none;
   }
+  .corpo { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+  .card.orizzontale .corpo { flex-direction: row; }
+  .scena-box { position: relative; flex: none; }
+  .scena-scala { position: absolute; width: 256px; height: 220px; transform-origin: top left; }
+  .scena-scala .scena { margin: 0; }
+  .lista { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; }
+  .lista::-webkit-scrollbar { display: none; }
+  .card.compatto .materia { padding: 5px 8px; margin-bottom: 4px; gap: 8px; }
+  .card.compatto .materia .esteso { display: none; }
+  .card.compatto .play { width: 24px; height: 24px; font-size: 9px; border-radius: 8px; }
+  .card.compatto .nome .sigla { font-size: 13px; }
+  .card.compatto .conti .tot { font-size: 13px; }
+  .card.compatto .piede { padding-top: 4px; }
+  .angolo {
+    position: absolute; right: 6px; bottom: 6px; width: 12px; height: 12px; cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 45%, rgba(255,255,255,0.25) 45%, rgba(255,255,255,0.25) 55%, transparent 55%,
+      transparent 70%, rgba(255,255,255,0.25) 70%, rgba(255,255,255,0.25) 80%, transparent 80%);
+    opacity: 0.6;
+  }
+  .angolo:hover { opacity: 1; }
   .mono { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
 
-  .testa { display: flex; align-items: center; gap: 10px; padding: 2px 4px 10px; cursor: grab; }
+  .testa { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 4px 10px; cursor: grab; }
   .testa:active { cursor: grabbing; }
   .maniglia { display: flex; gap: 3px; }
   .maniglia i { width: 3px; height: 14px; border-radius: 2px; background: rgba(255,255,255,0.18); }
@@ -298,7 +325,9 @@ export const className = `
   .materia.oggi .play { color: #06231f; background: linear-gradient(180deg, #5eead4, #14b8a6); }
   .play:hover { filter: brightness(1.25); }
   .nome { flex: 1; min-width: 0; }
-  .nome .sigla { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+  .nome .sigla { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; }
+  .nome .sigla span { overflow: hidden; text-overflow: ellipsis; }
+  .nome .sigla i { flex: none; }
   .nome .sigla i { width: 8px; height: 8px; border-radius: 50%; }
   .nome .esteso { font-size: 10px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
   .conti { text-align: right; }
@@ -375,6 +404,34 @@ function trascina(e) {
     window.removeEventListener("mousemove", muovi);
     window.removeEventListener("mouseup", lascia);
     run(`${STUDIO} ui x ${card.offsetLeft} y ${card.offsetTop}`);
+  };
+  window.addEventListener("mousemove", muovi);
+  window.addEventListener("mouseup", lascia);
+}
+
+// si ridimensiona dall'angolo in basso a destra: larghezza e altezza libere;
+// durante il gesto la misura va nello stato (il widget si ridisegna subito)
+// e al rilascio si salva su file
+function ridimensiona(e, dispatch) {
+  e.stopPropagation();
+  e.preventDefault();
+  const card = e.currentTarget.closest(".card");
+  const w0 = card.offsetWidth;
+  const h0 = card.offsetHeight;
+  const x0 = e.clientX;
+  const y0 = e.clientY;
+  let misura = { w: w0, h: h0 };
+  const muovi = (ev) => {
+    misura = {
+      w: Math.round(Math.min(1600, Math.max(240, w0 + ev.clientX - x0))),
+      h: Math.round(Math.min(1200, Math.max(300, h0 + ev.clientY - y0))),
+    };
+    dispatch({ type: "MISURA", misura });
+  };
+  const lascia = () => {
+    window.removeEventListener("mousemove", muovi);
+    window.removeEventListener("mouseup", lascia);
+    run(`${STUDIO} ui w ${misura.w} h ${misura.h}`);
   };
   window.addEventListener("mousemove", muovi);
   window.addEventListener("mouseup", lascia);
@@ -953,7 +1010,7 @@ const Materia = ({ mat, sec, diOggi, colore, esteso, vecchia }) => (
     <div className="nome">
       <div className="sigla">
         <i style={{ background: colore }} />
-        {mat}
+        <span>{mat}</span>
       </div>
       {esteso ? <div className="esteso">{esteso}</div> : null}
     </div>
@@ -984,6 +1041,8 @@ export const render = (state, dispatch) => {
   const pref = data.preferenze || {};
   const nomi = pref.nomi || {};
   const pos = posizione(ui);
+  const W = state.misura ? state.misura.w : Number(ui.w) || LARGA;
+  const H = state.misura ? state.misura.h : Number(ui.h) || ALTA;
   const vista = VISTE.find((v) => v.id === (state.vista || ui.vista)) || VISTE[0];
 
   const totali = { ...(data.totali || {}) };
@@ -1030,8 +1089,33 @@ export const render = (state, dispatch) => {
     run(`${STUDIO} ui vista ${prossima.id}`);
   };
 
+  // la scena è disegnata su 256×220: si scala per stare nello spazio che le resta.
+  // Se il widget è più largo che alto, scena a sinistra e materie a destra
+  const orizzontale = W >= 360 && W > H * 1.1;
+  // con poco spazio le righe delle materie si stringono (niente nome lungo)
+  const compatto = orizzontale ? H < 380 || W < 560 : H < 600;
+  const rigaH = compatto ? 46 : 56;
+  const PAD = 12;
+  const TESTA = 40; // altezze misurate nel browser: testata 38, piede 21, archivio 20
+  const SPAZIO = 10;
+  const righe = attive.filter((m) => !sess || m !== sess.materia).length + (state.archivio ? vecchie.length : 0);
+  const listaH =
+    (scenaGiorno ? 0 : 52) + (pref.obiettivo > 0 && !scenaGiorno ? 48 : 0) + righe * rigaH + (vecchie.length ? 22 : 0) + 26;
+  const spazio = orizzontale
+    ? {
+        // la colonna delle materie tiene almeno 170px, la scena prende il resto
+        w: Math.round(
+          Math.min((W - 2 * PAD - SPAZIO) * 0.6, ((H - 2 * PAD - TESTA) * 256) / 220, W - 2 * PAD - SPAZIO - 170)
+        ),
+        h: H - 2 * PAD - TESTA,
+      }
+    : { w: W - 2 * PAD, h: Math.max(110, H - 2 * PAD - TESTA - listaH - SPAZIO) };
+  const s = Math.min(spazio.w / 256, spazio.h / 220);
+  // la scatola prende solo quello che serve alla scena: il resto va alla lista
+  const box = orizzontale ? { w: Math.round(256 * s), h: spazio.h } : { w: spazio.w, h: Math.round(220 * s) };
+
   return (
-    <div className="card" style={{ left: pos.x, top: pos.y }}>
+    <div className={"card" + (orizzontale ? " orizzontale" : "") + (compatto ? " compatto" : "")} style={{ left: pos.x, top: pos.y, width: W, height: H }}>
       <div className="testa" onMouseDown={trascina}>
         <span className="maniglia">
           <i />
@@ -1047,109 +1131,121 @@ export const render = (state, dispatch) => {
         )}
       </div>
 
-      {(() => {
-        // nelle scene il totale è quello delle materie attive; quello di sempre resta nel piede
-        const totAttive = attive.reduce((a, m) => a + totali[m], 0);
-        const dati = { attive, vecchie, totali, oggi, colore, totale: totAttive };
-        const studio = sess && state.indietro === 0;
-        const crono = { sess, durataSess, oggiTot: totaleOggi, ...dati };
-        const giornoScelto = {
-          giorni: { ...giorni, [giorno(new Date())]: oggiLive },
-          chiave,
-          quando: etichetta(visto, state.indietro),
-          obiettivo: pref.obiettivo,
-          inizio: pref.inizio,
-          puoiPrima: chiave > primo,
-          puoiDopo: state.indietro > 0,
-          prima: () => dispatch({ type: "GIORNO_PRIMA" }),
-          dopo: () => dispatch({ type: "GIORNO_DOPO" }),
-        };
-        if (vista.id === "citta")
-          return studio ? <CronoCitta {...crono} obiettivo={pref.obiettivo} /> : <ScenaCitta {...dati} {...giornoScelto} />;
-        if (vista.id === "vinile")
-          return (
-            <Giradischi
-              {...dati}
-              {...giornoScelto}
-              sess={studio ? sess : null}
-              durataSess={durataSess}
-              oggiTot={Object.values(oggiLive).reduce((a, b) => a + b, 0)}
-            />
-          );
-        if (studio) return <CronoSolare {...crono} />;
-        return <ScenaSolare {...dati} {...giornoScelto} />;
-      })()}
-
-      {scenaGiorno ? null : (
-      <div className="barra">
-        <button
-          className="freccia"
-          title="Giorno prima"
-          disabled={chiave <= primo}
-          onClick={() => dispatch({ type: "GIORNO_PRIMA" })}
-        >
-          ‹
-        </button>
-        <div className="giorno">
-          {etichetta(visto, state.indietro)}
-          <span className={"ore mono" + (vuoto ? " vuoto" : "")}>{vuoto ? "nessun dato" : fmt(totaleOggi)}</span>
-        </div>
-        <button
-          className="freccia"
-          title="Giorno dopo"
-          disabled={state.indietro === 0}
-          onClick={() => dispatch({ type: "GIORNO_DOPO" })}
-        >
-          ›
-        </button>
-      </div>
-      )}
-
-      {pref.obiettivo > 0 && !scenaGiorno ? (
-        <div className="obiettivo">
-          <div className="riga">
-            <span>Obiettivo giornaliero</span>
-            <span className="mono">
-              <b>{fmt(totaleOggi)}</b> / {fmt(pref.obiettivo)}
-            </span>
-          </div>
-          <div className="traccia">
-            <div className="riempi" style={{ width: `${Math.min(100, (100 * totaleOggi) / pref.obiettivo)}%` }} />
+      <div className="corpo">
+        <div className="scena-box" style={{ width: box.w, height: box.h }}>
+          <div
+            className="scena-scala"
+            style={{ transform: `scale(${s})`, left: (box.w - 256 * s) / 2, top: (box.h - 220 * s) / 2 }}
+          >
+            {(() => {
+              // nelle scene il totale è quello delle materie attive; quello di sempre resta nel piede
+              const totAttive = attive.reduce((a, m) => a + totali[m], 0);
+              const dati = { attive, vecchie, totali, oggi, colore, totale: totAttive };
+              const studio = sess && state.indietro === 0;
+              const crono = { sess, durataSess, oggiTot: totaleOggi, ...dati };
+              const giornoScelto = {
+                giorni: { ...giorni, [giorno(new Date())]: oggiLive },
+                chiave,
+                quando: etichetta(visto, state.indietro),
+                obiettivo: pref.obiettivo,
+                inizio: pref.inizio,
+                puoiPrima: chiave > primo,
+                puoiDopo: state.indietro > 0,
+                prima: () => dispatch({ type: "GIORNO_PRIMA" }),
+                dopo: () => dispatch({ type: "GIORNO_DOPO" }),
+              };
+              if (vista.id === "citta")
+                return studio ? <CronoCitta {...crono} obiettivo={pref.obiettivo} /> : <ScenaCitta {...dati} {...giornoScelto} />;
+              if (vista.id === "vinile")
+                return (
+                  <Giradischi
+                    {...dati}
+                    {...giornoScelto}
+                    sess={studio ? sess : null}
+                    durataSess={durataSess}
+                    oggiTot={Object.values(oggiLive).reduce((a, b) => a + b, 0)}
+                  />
+                );
+              if (studio) return <CronoSolare {...crono} />;
+              return <ScenaSolare {...dati} {...giornoScelto} />;
+            })()}
           </div>
         </div>
-      ) : null}
 
-      {attive
-        .filter((m) => !sess || m !== sess.materia)
-        .map((m) => (
-          <Materia key={m} mat={m} sec={totali[m]} diOggi={oggi[m] || 0} colore={colore(m)} esteso={nomi[m]} />
-        ))}
+        <div className="lista">
+          {scenaGiorno ? null : (
+          <div className="barra">
+            <button
+              className="freccia"
+              title="Giorno prima"
+              disabled={chiave <= primo}
+              onClick={() => dispatch({ type: "GIORNO_PRIMA" })}
+            >
+              ‹
+            </button>
+            <div className="giorno">
+              {etichetta(visto, state.indietro)}
+              <span className={"ore mono" + (vuoto ? " vuoto" : "")}>{vuoto ? "nessun dato" : fmt(totaleOggi)}</span>
+            </div>
+            <button
+              className="freccia"
+              title="Giorno dopo"
+              disabled={state.indietro === 0}
+              onClick={() => dispatch({ type: "GIORNO_DOPO" })}
+            >
+              ›
+            </button>
+          </div>
+          )}
 
-      {vecchie.length > 0 ? (
-        <div className="archivio" onClick={() => dispatch({ type: "ARCHIVIO" })}>
-          {state.archivio ? "▾" : "▸"} archivio ({vecchie.length})
-        </div>
-      ) : null}
-      {state.archivio
-        ? vecchie
+          {pref.obiettivo > 0 && !scenaGiorno ? (
+            <div className="obiettivo">
+              <div className="riga">
+                <span>Obiettivo giornaliero</span>
+                <span className="mono">
+                  <b>{fmt(totaleOggi)}</b> / {fmt(pref.obiettivo)}
+                </span>
+              </div>
+              <div className="traccia">
+                <div className="riempi" style={{ width: `${Math.min(100, (100 * totaleOggi) / pref.obiettivo)}%` }} />
+              </div>
+            </div>
+          ) : null}
+
+          {attive
             .filter((m) => !sess || m !== sess.materia)
             .map((m) => (
-              <Materia
-                key={m}
-                mat={m}
-                sec={totali[m]}
-                diOggi={oggi[m] || 0}
-                colore={colore(m)}
-                esteso={nomi[m]}
-                vecchia
-              />
-            ))
-        : null}
+              <Materia key={m} mat={m} sec={totali[m]} diOggi={oggi[m] || 0} colore={colore(m)} esteso={nomi[m]} />
+            ))}
 
-      <div className="piede">
-        <span>Totale</span>
-        <b className="mono">{fmt(totale)}</b>
+          {vecchie.length > 0 ? (
+            <div className="archivio" onClick={() => dispatch({ type: "ARCHIVIO" })}>
+              {state.archivio ? "▾" : "▸"} archivio ({vecchie.length})
+            </div>
+          ) : null}
+          {state.archivio
+            ? vecchie
+                .filter((m) => !sess || m !== sess.materia)
+                .map((m) => (
+                  <Materia
+                    key={m}
+                    mat={m}
+                    sec={totali[m]}
+                    diOggi={oggi[m] || 0}
+                    colore={colore(m)}
+                    esteso={nomi[m]}
+                    vecchia
+                  />
+                ))
+            : null}
+
+          <div className="piede">
+            <span>Totale</span>
+            <b className="mono">{fmt(totale)}</b>
+          </div>
+        </div>
       </div>
+      <div className="angolo" title="Trascina per cambiare larghezza e altezza" onMouseDown={(e) => ridimensiona(e, dispatch)} />
     </div>
   );
 };

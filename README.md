@@ -9,7 +9,7 @@ Un widget per [Übersicht](https://tracesof.net/uebersicht/) che tiene il conto 
 - **▶ / ■** per far partire e fermare il timer; mentre studi la scena diventa un cronometro flip
 - **obiettivo giornaliero** facoltativo, come anello intorno al sole, alla luna o all'etichetta del disco
 - le materie del semestre in primo piano, quelle vecchie nell'**archivio**
-- si sposta trascinando la testata, e posizione e tema restano anche dopo un riavvio
+- si sposta trascinando la testata e si ridimensiona dall'angolo in basso a destra, larghezza e altezza libere: se lo fai più largo che alto si dispone in orizzontale (scena a sinistra, materie a destra); posizione, misura e tema restano anche dopo un riavvio
 - tutto in un file JSON leggibile, gestibile anche da terminale
 
 ## Installazione
